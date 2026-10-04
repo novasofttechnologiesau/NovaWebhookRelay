@@ -10,6 +10,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 
 def create_app(secret: str, database: Path) -> FastAPI:
     app = FastAPI(title="NovaWebhookRelay")
+    database.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(database) as db:
         db.execute(
             "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, received_at TEXT DEFAULT CURRENT_TIMESTAMP, body BLOB NOT NULL)"
@@ -20,6 +21,8 @@ def create_app(secret: str, database: Path) -> FastAPI:
         request: Request, x_nova_signature: str | None = Header(default=None)
     ) -> dict[str, str]:
         body = await request.body()
+        if len(body) > 1_048_576:
+            raise HTTPException(413, "payload exceeds 1 MiB limit")
         expected = (
             "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
         )
